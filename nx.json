@@ -5,7 +5,8 @@
     "defaultBase": "main"
   },
   "cli": {
-    "defaultCollection": "@nrwl/nest"
+    "defaultCollection": "@nrwl/nest",
+    "packageManager": "yarn"
   },
   "implicitDependencies": {
     "package.json": {

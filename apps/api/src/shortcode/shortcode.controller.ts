@@ -1,45 +1,84 @@
+import { NotFoundError } from '@mikro-orm/core';
 import {
+  BadRequestException,
+  Body,
   Controller,
   Get,
-  Post,
-  Body,
-  Patch,
+  Inject,
+  NotFoundException,
   Param,
-  Delete,
+  Post,
 } from '@nestjs/common';
-import { ShortcodeService } from './shortcode.service';
+import {
+  ApiBadRequestResponse,
+  ApiCreatedResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
+  ShortcodeSlug,
+  ShortcodeStats,
+  ShortcodeUrl,
+} from '@url-shorten/api-interfaces';
 import { CreateShortcodeDto } from './dto/create-shortcode.dto';
-import { UpdateShortcodeDto } from './dto/update-shortcode.dto';
+import { StatsDto } from './dto/stats.dto';
+import { GenerateString } from './interfaces/generate-string.interface';
+import { IShortcodeService } from './interfaces/shortcode-service.interface';
 
+@ApiTags('shortcode')
 @Controller('shortcode')
 export class ShortcodeController {
-  constructor(private readonly shortcodeService: ShortcodeService) {}
+  constructor(
+    @Inject(IShortcodeService)
+    private readonly shortcodeService: IShortcodeService,
+    @Inject(GenerateString) private readonly slugGenerator: GenerateString
+  ) {}
 
-  @Post()
-  create(@Body() createShortcodeDto: CreateShortcodeDto) {
-    return this.shortcodeService.create(createShortcodeDto);
+  @ApiBadRequestResponse({ description: 'Slug is already defined.' })
+  @ApiCreatedResponse({ description: '{slug: your_url_slug}' })
+  @Post('/submit')
+  async create(
+    @Body() createShortcodeDto: CreateShortcodeDto
+  ): Promise<ShortcodeSlug> {
+    if (!createShortcodeDto.slug) {
+      createShortcodeDto.slug = this.slugGenerator.next();
+    }
+
+    const result = await this.shortcodeService.findOne(createShortcodeDto.slug);
+
+    if (result) {
+      throw new BadRequestException('Slug is already defined.');
+    }
+
+    const shortcode = await this.shortcodeService.create(createShortcodeDto);
+    return { slug: shortcode.slug };
   }
 
-  @Get()
-  findAll() {
-    return this.shortcodeService.findAll();
+  @Get(':slug')
+  async findOne(@Param('slug') slug: string): Promise<ShortcodeUrl> {
+    try {
+      await this.shortcodeService.hit(slug);
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw new NotFoundException('Slug does not exist.');
+      }
+    }
+    const shortcode = await this.shortcodeService.findOne(slug);
+    return { url: shortcode.url };
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.shortcodeService.findOne(+id);
-  }
+  @Get(':slug/stats')
+  async stats(@Param('slug') slug: string): Promise<ShortcodeStats> {
+    const shortcode = await this.shortcodeService.findOne(slug);
 
-  @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateShortcodeDto: UpdateShortcodeDto
-  ) {
-    return this.shortcodeService.update(+id, updateShortcodeDto);
-  }
+    if (!shortcode) {
+      throw new NotFoundException('Slug does not exists.');
+    }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.shortcodeService.remove(+id);
+    const stats = new StatsDto();
+    stats.hits = shortcode.hits;
+    stats.createdAt = shortcode.createdAt;
+    stats.lastAccessed = shortcode.updatedAt;
+
+    return stats;
   }
 }

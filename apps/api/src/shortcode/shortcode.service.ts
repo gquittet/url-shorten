@@ -1,26 +1,38 @@
+import { InjectRepository } from '@mikro-orm/nestjs';
+import { EntityRepository } from '@mikro-orm/postgresql';
 import { Injectable } from '@nestjs/common';
 import { CreateShortcodeDto } from './dto/create-shortcode.dto';
-import { UpdateShortcodeDto } from './dto/update-shortcode.dto';
+import { ShortcodeEntity } from './entities/shortcode.entity';
+import { IShortcodeService } from './interfaces/shortcode-service.interface';
 
 @Injectable()
-export class ShortcodeService {
-  create(createShortcodeDto: CreateShortcodeDto) {
-    return 'This action adds a new shortcode';
+export class ShortcodeService implements IShortcodeService {
+  constructor(
+    @InjectRepository(ShortcodeEntity)
+    private readonly shortcodeRepository: EntityRepository<ShortcodeEntity>
+  ) {}
+
+  async create(
+    createShortcodeDto: CreateShortcodeDto
+  ): Promise<ShortcodeEntity> {
+    const shortcode = new ShortcodeEntity();
+    shortcode.url = createShortcodeDto.url;
+    shortcode.slug = createShortcodeDto.slug.toLowerCase();
+    await this.shortcodeRepository.persistAndFlush(shortcode);
+    return shortcode;
   }
 
-  findAll() {
-    return `This action returns all shortcode`;
+  findOne(slug: string): Promise<ShortcodeEntity> {
+    return this.shortcodeRepository.findOne({
+      slug: slug.toLowerCase(),
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} shortcode`;
-  }
-
-  update(id: number, updateShortcodeDto: UpdateShortcodeDto) {
-    return `This action updates a #${id} shortcode`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} shortcode`;
+  async hit(slug: string): Promise<void> {
+    const shortcode = await this.shortcodeRepository.findOneOrFail({
+      slug: slug.toLowerCase(),
+    });
+    shortcode.hits += 1;
+    return this.shortcodeRepository.persistAndFlush(shortcode);
   }
 }
