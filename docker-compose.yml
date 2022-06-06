@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+
+  db:
+    image: postgres:9-alpine
+    environment:
+      POSTGRES_DB: url_shorten
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+      PGDATA: /data/postgres
+    volumes:
+      - db:/data/postgres
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  db:
