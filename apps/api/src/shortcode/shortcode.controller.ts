@@ -4,21 +4,17 @@ import {
   Body,
   Controller,
   Get,
+  HttpStatus,
   Inject,
   NotFoundException,
   Param,
   Post,
+  Redirect,
+  Res,
 } from '@nestjs/common';
-import {
-  ApiBadRequestResponse,
-  ApiCreatedResponse,
-  ApiTags,
-} from '@nestjs/swagger';
-import {
-  ShortcodeSlug,
-  ShortcodeStats,
-  ShortcodeUrl,
-} from '@url-shorten/api-interfaces';
+import { ApiBadRequestResponse, ApiCreatedResponse, ApiTags } from '@nestjs/swagger';
+import { ShortcodeStats } from '@url-shorten/api-interfaces';
+import { Response } from 'express';
 import { CreateShortcodeDto } from './dto/create-shortcode.dto';
 import { StatsDto } from './dto/stats.dto';
 import { GenerateString } from './interfaces/generate-string.interface';
@@ -35,10 +31,8 @@ export class ShortcodeController {
 
   @ApiBadRequestResponse({ description: 'Slug is already defined.' })
   @ApiCreatedResponse({ description: '{slug: your_url_slug}' })
-  @Post('/submit')
-  async create(
-    @Body() createShortcodeDto: CreateShortcodeDto
-  ): Promise<ShortcodeSlug> {
+  @Post('/')
+  async create(@Body() createShortcodeDto: CreateShortcodeDto, @Res() res: Response) {
     if (!createShortcodeDto.slug) {
       createShortcodeDto.slug = this.slugGenerator.next();
     }
@@ -50,11 +44,14 @@ export class ShortcodeController {
     }
 
     const shortcode = await this.shortcodeService.create(createShortcodeDto);
-    return { slug: shortcode.slug };
+    return res
+      .setHeader('Location', `/api/shortcode/${shortcode.slug}`)
+      .json(shortcode);
   }
 
   @Get(':slug')
-  async findOne(@Param('slug') slug: string): Promise<ShortcodeUrl> {
+  @Redirect()
+  async findOne(@Param('slug') slug: string) {
     try {
       await this.shortcodeService.hit(slug);
     } catch (error) {
@@ -63,7 +60,7 @@ export class ShortcodeController {
       }
     }
     const shortcode = await this.shortcodeService.findOne(slug);
-    return { url: shortcode.url };
+    return { url: shortcode.url, statusCode: HttpStatus.TEMPORARY_REDIRECT };
   }
 
   @Get(':slug/stats')

@@ -17,6 +17,7 @@ describe('ShortcodeController', () => {
 
   let mockedService;
   let mockedSlugGeneratorService;
+  let mockedResponse;
 
   const buildShortcode = () => {
     const shortcode = new ShortcodeEntity();
@@ -29,15 +30,19 @@ describe('ShortcodeController', () => {
     mockedService = {
       create: jest
         .fn()
-        .mockImplementation(
-          async (): Promise<ShortcodeEntity> => buildShortcode()
-        ),
+        .mockImplementation(async (): Promise<ShortcodeEntity> => buildShortcode()),
       findOne: jest.fn().mockReturnValue(undefined),
       hit: jest.fn().mockReturnValue(undefined),
     };
 
     mockedSlugGeneratorService = {
       next: jest.fn().mockReturnValue(FIXED_SLUG),
+    };
+
+    mockedResponse = {
+      setHeader: jest.fn().mockReturnValue(mockedResponse),
+      json: jest.fn(),
+      redirect: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -69,14 +74,14 @@ describe('ShortcodeController', () => {
     beforeEach(initializeTest);
 
     it('should check if a shortcode already exists with the same slug', () => {
-      controller.create({ url: FAKE_URL, slug: FAKE_SLUG });
+      controller.create({ url: FAKE_URL, slug: FAKE_SLUG }, mockedResponse);
       expect(service.findOne).toHaveBeenCalledTimes(1);
     });
 
     it('should throw a BadRequestException if shortcode already exists', async () => {
       jest.spyOn(service, 'findOne').mockResolvedValueOnce(buildShortcode());
       try {
-        await controller.create({ url: FAKE_URL, slug: FAKE_SLUG });
+        await controller.create({ url: FAKE_URL, slug: FAKE_SLUG }, mockedResponse);
       } catch (e) {
         expect(e).toBeInstanceOf(BadRequestException);
         expect(e.message).toBe('Slug is already defined.');
@@ -84,12 +89,12 @@ describe('ShortcodeController', () => {
     });
 
     it('should generate slug if not given', async () => {
-      await controller.create({ url: FAKE_URL });
+      await controller.create({ url: FAKE_URL }, mockedResponse);
       expect(slugGeneratorService.next).toHaveBeenCalledTimes(1);
     });
 
     it('should create a shortcode if everything is correct', async () => {
-      await controller.create({ url: FAKE_URL, slug: FAKE_SLUG });
+      await controller.create({ url: FAKE_URL, slug: FAKE_SLUG }, mockedResponse);
       expect(service.create).toHaveBeenCalledTimes(1);
     });
   });
@@ -113,14 +118,6 @@ describe('ShortcodeController', () => {
         expect(e).toBeInstanceOf(NotFoundException);
         expect(e.message).toBe('Slug does not exist.');
       }
-    });
-
-    it('should return an url object', async () => {
-      jest.spyOn(service, 'findOne').mockResolvedValueOnce(buildShortcode());
-
-      const result = await controller.findOne(FAKE_SLUG);
-      const expected = buildShortcode();
-      expect(result).toEqual({ url: expected.url });
     });
   });
 

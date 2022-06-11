@@ -1,6 +1,6 @@
 import { NotFoundError } from '@mikro-orm/core';
 import { getRepositoryToken } from '@mikro-orm/nestjs';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 import { CreateShortcodeDto } from '../shortcode/dto/create-shortcode.dto';
@@ -11,30 +11,22 @@ import { ShortcodeModule } from '../shortcode/shortcode.module';
 
 describe('Shortcode e2e', () => {
   let app: INestApplication;
-  const FAKE_URL = 'https://test.com';
-  const FAKE_SLUG = 'fakeslug';
   const FIXED_SLUG = 'fixedslug';
 
   const buildShortcodeEntity = (): ShortcodeEntity => {
     const shortcode = new ShortcodeEntity();
-    shortcode.url = FAKE_URL;
-    shortcode.slug = FAKE_SLUG;
+    shortcode.url = 'https://test.com';
+    shortcode.slug = 'e2eSlug';
     shortcode.hits = 4;
     return shortcode;
   };
 
   const shortcodeService = {
-    findOne: jest
-      .fn()
-      .mockImplementation(
-        async (): Promise<ShortcodeEntity> => buildShortcodeEntity()
-      ),
+    findOne: jest.fn().mockResolvedValue(buildShortcodeEntity()),
     create: jest
       .fn()
       .mockImplementation(
-        async (
-          createShortcodeDto: CreateShortcodeDto
-        ): Promise<ShortcodeEntity> => {
+        async (createShortcodeDto: CreateShortcodeDto): Promise<ShortcodeEntity> => {
           const shortcode = new ShortcodeEntity();
           shortcode.slug = createShortcodeDto.slug;
           shortcode.url = createShortcodeDto.url;
@@ -68,106 +60,118 @@ describe('Shortcode e2e', () => {
   });
 
   describe('POST /', () => {
-    it(`should create shortcode`, () => {
-      jest.spyOn(shortcodeService, 'findOne').mockReturnValueOnce(undefined);
+    it(`should create shortcode`, async () => {
+      const shortcode = buildShortcodeEntity();
+      jest.spyOn(shortcodeService, 'findOne').mockResolvedValueOnce(undefined);
+      jest.spyOn(shortcodeService, 'create').mockResolvedValueOnce(shortcode);
 
-      return request(app.getHttpServer())
-        .post('/shortcode/submit')
-        .send({
-          url: FAKE_URL,
-          slug: FAKE_SLUG,
-        })
-        .expect(201)
-        .expect({
-          slug: FAKE_SLUG,
-        });
+      const response = await request(app.getHttpServer()).post('/shortcode').send({
+        url: shortcode.url,
+        slug: shortcode.slug,
+      });
+
+      expect(response.status).toBe(HttpStatus.CREATED);
+      expect(response.header).toHaveProperty('location');
+      expect(response.header.location).toBe(`/api/shortcode/${shortcode.slug}`);
+      expect(response.body).toEqual(JSON.parse(JSON.stringify(shortcode)));
     });
 
-    it(`should return 400 if shortcode exist`, () => {
-      return request(app.getHttpServer())
-        .post('/shortcode/submit')
-        .send({
-          url: FAKE_URL,
-          slug: FAKE_SLUG,
-        })
-        .expect(400)
-        .expect({
-          statusCode: 400,
-          message: 'Slug is already defined.',
-          error: 'Bad Request',
-        });
+    it(`should return 400 if shortcode exist`, async () => {
+      const shortcode = buildShortcodeEntity();
+      const response = await request(app.getHttpServer()).post('/shortcode').send({
+        url: shortcode.url,
+        slug: shortcode.slug,
+      });
+
+      expect(response.status).toBe(HttpStatus.BAD_REQUEST);
+      expect(response.body).toEqual({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Slug is already defined.',
+        error: 'Bad Request',
+      });
     });
 
-    it(`should return 400 if no url`, () => {
-      return request(app.getHttpServer())
-        .post('/shortcode/submit')
-        .send({})
-        .expect(400)
-        .expect({
-          statusCode: 400,
-          message: ['url must be an URL address'],
-          error: 'Bad Request',
-        });
+    it(`should return 400 if no url`, async () => {
+      const response = await request(app.getHttpServer()).post('/shortcode').send({});
+
+      expect(response.status).toBe(HttpStatus.BAD_REQUEST);
+      expect(response.body).toEqual({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: ['url must be an URL address'],
+        error: 'Bad Request',
+      });
     });
   });
 
   describe('GET /:slug', () => {
-    it(`should return 404 if shortcode not found`, () => {
-      return request(app.getHttpServer())
-        .get(`/shortcode/${FAKE_SLUG}`)
-        .expect(404)
-        .expect({
-          statusCode: 404,
-          message: 'Slug does not exist.',
-          error: 'Not Found',
-        });
+    it(`should return 404 if shortcode not found`, async () => {
+      const shortcode = buildShortcodeEntity();
+      const response = await request(app.getHttpServer()).get(
+        `/shortcode/${shortcode.slug}`
+      );
+
+      expect(response.status).toBe(HttpStatus.NOT_FOUND);
+      expect(response.body).toEqual({
+        statusCode: HttpStatus.NOT_FOUND,
+        message: 'Slug does not exist.',
+        error: 'Not Found',
+      });
     });
 
-    it(`should return url if shortcode found`, () => {
-      jest.spyOn(shortcodeService, 'hit').mockReturnValueOnce(undefined);
+    it(`should redirect if shortcode found`, async () => {
+      const shortcode = buildShortcodeEntity();
+      jest.spyOn(shortcodeService, 'hit').mockResolvedValueOnce(undefined);
 
-      return request(app.getHttpServer())
-        .get(`/shortcode/${FAKE_SLUG}`)
-        .expect(200)
-        .expect({
-          url: buildShortcodeEntity().url,
-        });
+      const response = await request(app.getHttpServer()).get(
+        `/shortcode/${shortcode.slug}`
+      );
+
+      expect(response.status).toBe(HttpStatus.TEMPORARY_REDIRECT);
+      expect(response.header).toHaveProperty('location');
+      expect(response.header.location).toBe(shortcode.url);
     });
-  });
 
-  describe('GET /:slug/stats', () => {
-    it(`should return 404 if shortcode not found`, () => {
-      jest.spyOn(shortcodeService, 'findOne').mockReturnValueOnce(undefined);
+    describe('GET /:slug/stats', () => {
+      it(`should return 404 if shortcode not found`, async () => {
+        const shortcode = buildShortcodeEntity();
+        jest.spyOn(shortcodeService, 'findOne').mockResolvedValueOnce(undefined);
 
-      return request(app.getHttpServer())
-        .get(`/shortcode/${FAKE_SLUG}/stats`)
-        .expect(404)
-        .expect({
-          statusCode: 404,
+        const response = await request(app.getHttpServer()).get(
+          `/shortcode/${shortcode.slug}/stats`
+        );
+
+        expect(response.status).toBe(HttpStatus.NOT_FOUND);
+        expect(response.body).toEqual({
+          statusCode: HttpStatus.NOT_FOUND,
           message: 'Slug does not exists.',
           error: 'Not Found',
         });
-    });
+      });
 
-    it(`should return 200 with stats if shortcode found`, () => {
-      const shortcode = buildShortcodeEntity();
-      jest.spyOn(shortcodeService, 'hit').mockReturnValueOnce(undefined);
-      jest.spyOn(shortcodeService, 'findOne').mockResolvedValueOnce(shortcode);
+      it(`should return 200 with stats if shortcode found`, async () => {
+        const shortcode = buildShortcodeEntity();
+        jest.spyOn(shortcodeService, 'hit').mockResolvedValueOnce(undefined);
+        jest.spyOn(shortcodeService, 'findOne').mockResolvedValueOnce(shortcode);
 
-      return request(app.getHttpServer())
-        .get(`/shortcode/${FAKE_SLUG}/stats`)
-        .expect(200)
-        .expect(
-          JSON.stringify({
-            hits: shortcode.hits,
-            createdAt: shortcode.createdAt,
-            lastAccessed: shortcode.updatedAt,
-          })
+        const response = await request(app.getHttpServer()).get(
+          `/shortcode/${shortcode.slug}/stats`
         );
-    });
-  });
 
-  afterAll(async () => {
-    await app.close();
+        expect(response.status).toBe(HttpStatus.OK);
+        expect(response.body).toEqual(
+          JSON.parse(
+            JSON.stringify({
+              hits: shortcode.hits,
+              createdAt: shortcode.createdAt,
+              lastAccessed: shortcode.updatedAt,
+            })
+          )
+        );
+      });
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
   });
 });
