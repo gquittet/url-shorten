@@ -13,14 +13,6 @@ export interface Shortcode {
   status: ShortcodeStatus;
 }
 
-export interface ShortcodeUrl {
-  url: string;
-}
-
-export interface ShortcodeSlug {
-  slug: string;
-}
-
 export interface ShortcodeStats {
   hits: number;
   createdAt: Date;
