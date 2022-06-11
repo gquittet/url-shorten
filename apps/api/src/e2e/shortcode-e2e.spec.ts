@@ -118,17 +118,17 @@ describe('Shortcode e2e', () => {
       });
     });
 
-    it(`should redirect if shortcode found`, async () => {
+    it(`should return shortcode if found`, async () => {
       const shortcode = buildShortcodeEntity();
       jest.spyOn(shortcodeService, 'hit').mockResolvedValueOnce(undefined);
+      jest.spyOn(shortcodeService, 'findOne').mockResolvedValueOnce(shortcode);
 
       const response = await request(app.getHttpServer()).get(
         `/shortcode/${shortcode.slug}`
       );
 
-      expect(response.status).toBe(HttpStatus.TEMPORARY_REDIRECT);
-      expect(response.header).toHaveProperty('location');
-      expect(response.header.location).toBe(shortcode.url);
+      expect(response.status).toBe(HttpStatus.OK);
+      expect(response.body).toEqual(JSON.parse(JSON.stringify(shortcode)));
     });
 
     describe('GET /:slug/stats', () => {

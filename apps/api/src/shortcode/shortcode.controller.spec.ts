@@ -42,7 +42,6 @@ describe('ShortcodeController', () => {
     mockedResponse = {
       setHeader: jest.fn().mockReturnValue(mockedResponse),
       json: jest.fn(),
-      redirect: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -118,6 +117,19 @@ describe('ShortcodeController', () => {
         expect(e).toBeInstanceOf(NotFoundException);
         expect(e.message).toBe('Slug does not exist.');
       }
+    });
+
+    it('should called findOne of service', async () => {
+      jest.spyOn(service, 'findOne').mockResolvedValueOnce(buildShortcode());
+      await controller.findOne(FAKE_SLUG);
+      expect(service.findOne).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return the shortcode if found', async () => {
+      const shortcode = buildShortcode();
+      jest.spyOn(service, 'findOne').mockResolvedValueOnce(shortcode);
+      const result = await controller.findOne(FAKE_SLUG);
+      expect(result).toEqual(shortcode);
     });
   });
 

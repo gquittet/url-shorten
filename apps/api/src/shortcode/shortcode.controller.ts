@@ -4,12 +4,10 @@ import {
   Body,
   Controller,
   Get,
-  HttpStatus,
   Inject,
   NotFoundException,
   Param,
   Post,
-  Redirect,
   Res,
 } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiCreatedResponse, ApiTags } from '@nestjs/swagger';
@@ -50,7 +48,6 @@ export class ShortcodeController {
   }
 
   @Get(':slug')
-  @Redirect()
   async findOne(@Param('slug') slug: string) {
     try {
       await this.shortcodeService.hit(slug);
@@ -59,8 +56,7 @@ export class ShortcodeController {
         throw new NotFoundException('Slug does not exist.');
       }
     }
-    const shortcode = await this.shortcodeService.findOne(slug);
-    return { url: shortcode.url, statusCode: HttpStatus.TEMPORARY_REDIRECT };
+    return this.shortcodeService.findOne(slug);
   }
 
   @Get(':slug/stats')
