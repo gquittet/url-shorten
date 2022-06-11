@@ -4,6 +4,8 @@
   "projects": {
     "api": "apps/api",
     "api-interfaces": "libs/api-interfaces",
+    "frontend": "apps/frontend",
+    "frontend-e2e": "apps/frontend-e2e",
     "mikro-orm-config": "libs/mikro-orm-config"
   }
 }

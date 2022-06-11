@@ -31,5 +31,18 @@
       }
     ]
   },
-  "defaultProject": "api"
+  "defaultProject": "api",
+  "generators": {
+    "@nrwl/react": {
+      "application": {
+        "babel": true
+      }
+    },
+    "@nrwl/next": {
+      "application": {
+        "style": "scss",
+        "linter": "eslint"
+      }
+    }
+  }
 }
