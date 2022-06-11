@@ -1,6 +1,10 @@
-
+<!--suppress HtmlRequiredAltAttribute -->
 
 # UrlShorten
+
+## Screenshot
+
+![](./assets/Screenshot%20from%202022-06-12%2000-25-49.png)
 
 This project was generated using [Nx](https://nx.dev).
 
